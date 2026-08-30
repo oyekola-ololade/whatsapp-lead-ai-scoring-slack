@@ -1,0 +1,409 @@
+{
+  "name": "T1_WhatsApp_Lead_AI_Scoring_Slack",
+  "nodes": [
+    {
+      "id": "318c1329-ddc2-427f-a542-f1e27b00333f",
+      "name": "Note_7f02232a",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        50,
+        50
+      ],
+      "parameters": {
+        "content": "Created by Oyekola Ololade\nhttps://www.linkedin.com/in/ololade-oyekola-5b1797397/\nn8n Template Library - Gumroad",
+        "width": 300,
+        "height": 100,
+        "color": 4
+      }
+    },
+    {
+      "id": "6382677e-1f70-47e1-ae79-1886de0de241",
+      "name": "WhatsApp Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "7c5ed8c2-94eb-4a8d-8278-9c5c1b8a44ec",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "0123b72d-e016-4376-851e-f6cf9e2574f7",
+      "name": "Extract Lead Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        450,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9048113e-5c06-465b-92ac-eee60971ed71",
+              "name": "name",
+              "value": "={{ $json.body.name }}",
+              "type": "string"
+            },
+            {
+              "id": "63f741f1-67cf-44fb-8dc1-e2fdc55dc41c",
+              "name": "email",
+              "value": "={{ $json.body.email }}",
+              "type": "string"
+            },
+            {
+              "id": "9ab3f80a-3da1-4ed9-a2cc-421cd848b200",
+              "name": "budget",
+              "value": "={{ $json.body.budget }}",
+              "type": "string"
+            },
+            {
+              "id": "04689d5a-a520-4e6a-9093-be2cbacb31d3",
+              "name": "timeline",
+              "value": "={{ $json.body.timeline }}",
+              "type": "string"
+            },
+            {
+              "id": "5cd4fef8-f2c2-4138-8e0f-8c4904c51b16",
+              "name": "company_size",
+              "value": "={{ $json.body.company_size }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "32e66002-9b84-4f3a-8c25-130f42ee1ca1",
+      "name": "Claude AI Scoring",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        650,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_CLAUDE_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-3-sonnet-20240229"
+            },
+            {
+              "name": "max_tokens",
+              "value": 1000
+            },
+            {
+              "name": "messages",
+              "value": "[{\"role\":\"user\",\"content\":\"Score this lead as hot/warm/cold. Budget: {{ $json.budget }}, Timeline: {{ $json.timeline }}, Company: {{ $json.company_size }}. Respond with JSON: {score, reasoning, action}\"}]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "9fbe679c-12e5-49bb-94bf-b067e7ea37ed",
+      "name": "Check Claude Response",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        850,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "86be4d11-058b-4603-878d-275b59d05d0a",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "82fd0731-ca1a-428e-98cd-72134f545d3f",
+      "name": "Format Slack Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1050,
+        250
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "060842f5-562d-48c7-ba92-6f182593ca0a",
+              "name": "slack_message",
+              "value": "=\"🔴 HOT Lead Alert!\nName: \" + $json.name + \"\nEmail: \" + $json.email + \"\nBudget: \" + $json.budget + \"\nTimeline: \" + $json.timeline + \"\nScore: \" + $json.content[0].text",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "1acf589f-4559-4556-80f9-3b5377db056a",
+      "name": "Send to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1250,
+        250
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_SLACK_WEBHOOK_URL",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.slack_message }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "97a049ca-a1e0-438e-a405-6fb90d471de7",
+      "name": "Error - Claude Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1050,
+        450
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "570e9b75-552e-4a70-88da-a6fb27e31a4b",
+              "name": "error",
+              "value": "Claude API failed",
+              "type": "string"
+            },
+            {
+              "id": "74c79c0a-5519-42ad-ad69-408ba0b5cd5e",
+              "name": "fallback_message",
+              "value": "=\"Lead received but scoring failed. Name: \" + $json.name + \" Email: \" + $json.email",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "eb6d3d82-f75c-4f57-9ee0-fca0d0e2fd46",
+      "name": "Send Error to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1250,
+        450
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_SLACK_WEBHOOK_URL",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.fallback_message }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "423f400c-750e-4cc3-84b7-905649d1e63c",
+      "name": "End Success",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        250
+      ]
+    },
+    {
+      "id": "3d1a5979-732c-4b94-b8ce-e33f9f83bf7f",
+      "name": "End Error",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        450
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Lead Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Claude AI Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude AI Scoring": {
+      "main": [
+        [
+          {
+            "node": "Check Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Format Slack Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error - Claude Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slack Message": {
+      "main": [
+        [
+          {
+            "node": "Send to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Slack": {
+      "main": [
+        [
+          {
+            "node": "End Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error - Claude Failed": {
+      "main": [
+        [
+          {
+            "node": "Send Error to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Error to Slack": {
+      "main": [
+        [
+          {
+            "node": "End Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    "Gumroad",
+    "Production",
+    "Template",
+    "Oyekola Ololade"
+  ],
+  "pinData": {},
+  "staticData": null
+}

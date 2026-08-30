@@ -8,17 +8,86 @@ Scores inbound WhatsApp leads with Claude and alerts sales in Slack the moment a
 
 ---
 
+**[Open the visual project page →](./index.html)**
+
 ## Table of Contents
 
-- [Problem](#problem)
-- [Solution](#solution)
+- [Overview](#overview)
 - [Architecture](#architecture)
 - [Workflow](#workflow)
 - [Tech Stack](#tech-stack)
-- [Configuration](#configuration)
-- [Error Handling & Resilience](#error-handling--resilience)
-- [Use Cases](#use-cases)
-- [Demo](#demo)
+- [Demo status](#demo-status)
 - [Setup](#setup)
 - [Repository Structure](#repository-structure)
 - [Disclaimer](#disclaimer)
+
+## Overview
+
+**Trigger:** Webhook (WhatsApp lead payload: name, email, budget, timeline, company size)
+
+Scores inbound WhatsApp leads with Claude and alerts sales in Slack the moment a hot lead lands.
+
+### Key Features
+
+- AI lead scoring with structured JSON reasoning
+- Hot-lead Slack alerting
+- Graceful fallback if the scoring call fails
+
+## Architecture
+
+Open the [visual project page](./index.html#architecture) for the flow derived from the sanitized export.
+
+
+## Workflow
+
+1. WhatsApp lead webhook receives the payload
+2. Extract lead fields (name, email, budget, timeline, company size)
+3. Claude scores the lead as hot/warm/cold with reasoning
+4. On success, format and post a Slack alert for hot leads
+5. On API failure, fall back to a plain Slack notification with raw lead data
+
+## Tech Stack
+
+- n8n
+- Claude (Anthropic API)
+- Slack (Incoming Webhook)
+
+## Demo status
+
+A configured live-run recording is not included yet. Credentials and service identifiers remain placeholders.
+
+
+## Setup
+
+1. Import `workflow/T1_WhatsApp_Lead_AI_Scoring_Slack.json` into your n8n instance (**Workflows → Import from File**).
+2. Replace every placeholder credential/URL in the workflow (e.g. `YOUR_..._API_KEY`, `YOUR_..._URL`) with your own service credentials.
+3. Activate the workflow and point the relevant integration (webhook source, scheduled trigger, etc.) at the generated webhook URL.
+4. Test with a sample payload before going live.
+
+## Repository Structure
+
+```text
+.
+├── index.html
+├── README.md
+├── LICENSE
+├── .gitignore
+└── workflow/
+    └── T1_WhatsApp_Lead_AI_Scoring_Slack.json
+```
+
+
+## Disclaimer
+
+This workflow was built as a portfolio/template project to demonstrate n8n workflow automation and AI integration. API credentials and sensitive configuration have been removed before publication — replace all `YOUR_..._KEY` / `YOUR_..._URL` placeholders with your own before use.
+
+---
+
+Designed and engineered by
+
+**Oyekola Ololade**
+
+AI Systems & Integration Engineer
+
+- LinkedIn: <http://linkedin.com/in/ololade-oyekola-5b1797397>
+- Email: <oyekolaololade69@gmail.com>
