@@ -35,8 +35,17 @@ Scores inbound WhatsApp leads with Claude and alerts sales in Slack the moment a
 
 ## Architecture
 
-Open the [visual project page](./index.html#architecture) for the flow derived from the sanitized export.
+The diagram below represents the sanitized template flow. External services, credentials, and environment-specific identifiers must be configured before execution.
 
+```mermaid
+flowchart TD
+    A["WhatsApp lead webhook"] --> B["Normalize lead fields"]
+    B --> C["Claude lead scoring request"]
+    C --> D{"AI request succeeds?"}
+    D -->|Yes| E["Return hot, warm, or cold score with reasoning"]
+    E --> F["Alert Slack for hot lead"]
+    D -->|No| G["Send raw lead fallback to Slack"]
+```
 
 ## Workflow
 
