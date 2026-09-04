@@ -12,6 +12,7 @@ const TOPIC_CATEGORY = Number(process.env.TOPIC_CATEGORY || 13);
 let sessionId = null;
 let postResult = null;
 let postError = null;
+let preparing = false;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -117,9 +118,18 @@ async function executeAsync(script, args = []) {
 }
 
 async function prepareBrowser() {
-  await navigate(`${SITE}/login`);
-  await sleep(1200);
-  return { sessionId, vncUrl: VNC_URL };
+  if (preparing) {
+    for (let i = 0; i < 30 && preparing; i++) await sleep(500);
+    return { sessionId, vncUrl: VNC_URL };
+  }
+  preparing = true;
+  try {
+    await navigate(`${SITE}/login`);
+    await sleep(1200);
+    return { sessionId, vncUrl: VNC_URL };
+  } finally {
+    preparing = false;
+  }
 }
 
 async function currentLogin() {
@@ -255,4 +265,30 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`[CONTROLLER] listening on ${PORT}`);
   console.log(`[CONTROLLER] selenium=${SELENIUM_URL}`);
   console.log(`[CONTROLLER] discourse=${SITE}`);
+
+  // Prepare the browser automatically so the user only needs the VNC link.
+  (async () => {
+    for (let attempt = 1; attempt <= 20; attempt++) {
+      try {
+        const prepared = await prepareBrowser();
+        console.log(`[CONTROLLER] browser prepared session=${prepared.sessionId}`);
+        break;
+      } catch (e) {
+        console.error(`[CONTROLLER] prepare attempt ${attempt} failed: ${e.message}`);
+        await sleep(3000);
+      }
+    }
+  })();
+
+  // Keep the Selenium session active while the user completes login.
+  const keepAlive = setInterval(async () => {
+    if (!sessionId) return;
+    try {
+      await wd('GET', `/session/${sessionId}/url`);
+    } catch (e) {
+      console.error(`[CONTROLLER] keepalive failed: ${e.message}`);
+      sessionId = null;
+    }
+  }, 60000);
+  keepAlive.unref();
 });
