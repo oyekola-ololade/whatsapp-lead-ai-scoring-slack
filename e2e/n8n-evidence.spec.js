@@ -87,3 +87,5 @@ test('T1 imports into n8n and renders its workflow canvas', async ({ page }) => 
     throw error;
   }
 });
+
+// Evidence runner trigger: 2026-09-04
