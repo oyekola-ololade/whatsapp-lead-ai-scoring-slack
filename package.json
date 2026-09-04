@@ -1,0 +1,10 @@
+{
+  "name": "whatsapp-lead-ai-scoring-slack-evidence",
+  "private": true,
+  "scripts": {
+    "evidence": "playwright test e2e/n8n-evidence.spec.js --project=chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest"
+  }
+}
