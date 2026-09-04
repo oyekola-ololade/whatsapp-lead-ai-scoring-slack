@@ -1,0 +1,68 @@
+name: n8n T1 Evidence Capture
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - automation-evidence
+    paths:
+      - '.github/workflows/n8n-evidence.yml'
+      - 'e2e/**'
+      - 'playwright.config.js'
+      - 'package.json'
+      - 'workflow/T1_WhatsApp_Lead_AI_Scoring_Slack.json'
+
+permissions:
+  contents: read
+
+jobs:
+  capture-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      N8N_BASE_URL: https://n8n-validation-production.up.railway.app
+      N8N_EMAIL: ${{ secrets.N8N_EMAIL }}
+      N8N_PASSWORD: ${{ secrets.N8N_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check required secrets
+        id: secrets
+        shell: bash
+        run: |
+          if [[ -z "$N8N_EMAIL" || -z "$N8N_PASSWORD" ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Add repository secrets N8N_EMAIL and N8N_PASSWORD, then run this workflow again."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node.js
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm install
+
+      - name: Install Chromium
+        if: steps.secrets.outputs.ready == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Capture n8n evidence
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm run evidence
+
+      - name: Upload screenshots, trace, report and video
+        if: always() && steps.secrets.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: t1-n8n-evidence-${{ github.run_number }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
