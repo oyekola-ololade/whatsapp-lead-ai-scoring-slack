@@ -10,7 +10,6 @@ on:
       - 'e2e/**'
       - 'playwright.config.js'
       - 'package.json'
-      - 'run-and-serve.js'
       - 'workflow/T1_WhatsApp_Lead_AI_Scoring_Slack.json'
 
 permissions:
@@ -19,7 +18,7 @@ permissions:
 jobs:
   capture-evidence:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
       - name: Check out repository
@@ -30,19 +29,63 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install system dependency for bcrypt hashing
-        run: sudo apt-get update && sudo apt-get install -y apache2-utils
+      - name: Install validation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apache2-utils
+          npm install
+          npx playwright install --with-deps chromium
 
-      - name: Install dependencies
-        run: npm install
+      - name: Start disposable n8n 2.37.9
+        shell: bash
+        run: |
+          PASSWORD="$(openssl rand -hex 16)Aa1!"
+          HASH="$(htpasswd -bnBC 12 '' "$PASSWORD" | cut -d: -f2)"
+          ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          echo "::add-mask::$PASSWORD"
+          echo "N8N_BASE_URL=http://127.0.0.1:5678" >> "$GITHUB_ENV"
+          echo "N8N_EMAIL=validation-owner@example.com" >> "$GITHUB_ENV"
+          echo "N8N_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+          docker run -d --name n8n-t1-validation \
+            -p 5678:5678 \
+            -e N8N_PORT=5678 \
+            -e N8N_PROTOCOL=http \
+            -e N8N_HOST=127.0.0.1 \
+            -e N8N_LISTEN_ADDRESS=0.0.0.0 \
+            -e N8N_EDITOR_BASE_URL=http://127.0.0.1:5678 \
+            -e N8N_WEBHOOK_URL=http://127.0.0.1:5678 \
+            -e N8N_SECURE_COOKIE=false \
+            -e N8N_DIAGNOSTICS_ENABLED=false \
+            -e N8N_PERSONALIZATION_ENABLED=false \
+            -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
+            -e N8N_ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+            -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
+            -e N8N_INSTANCE_OWNER_EMAIL=validation-owner@example.com \
+            -e N8N_INSTANCE_OWNER_FIRST_NAME=Validation \
+            -e N8N_INSTANCE_OWNER_LAST_NAME=Owner \
+            -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$HASH" \
+            n8nio/n8n:2.37.9
 
-      - name: Start disposable n8n and capture T1 evidence
-        env:
-          CI_MODE: '1'
-        run: npm start
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:5678/healthz >/dev/null; then
+              echo "n8n is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs n8n-t1-validation
+          exit 1
+
+      - name: Import T1 and capture evidence
+        run: npm run evidence
+
+      - name: Capture n8n logs
+        if: always()
+        run: |
+          mkdir -p evidence
+          docker logs n8n-t1-validation > evidence/n8n-docker.log 2>&1 || true
 
       - name: Upload screenshots, trace, report and video
         if: always()
