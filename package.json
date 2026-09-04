@@ -1,6 +1,7 @@
 {
   "name": "whatsapp-lead-ai-scoring-slack-evidence",
   "private": true,
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "evidence": "playwright test e2e/n8n-evidence.spec.js --project=chromium",
     "start": "node run-and-serve.js"
