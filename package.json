@@ -6,6 +6,9 @@
     "evidence": "playwright test e2e/n8n-evidence.spec.js --project=chromium",
     "start": "node run-and-serve.js"
   },
+  "dependencies": {
+    "n8n": "2.37.9"
+  },
   "devDependencies": {
     "@playwright/test": "latest"
   }
