@@ -10,6 +10,7 @@ on:
       - 'e2e/**'
       - 'playwright.config.js'
       - 'package.json'
+      - 'run-and-serve.js'
       - 'workflow/T1_WhatsApp_Lead_AI_Scoring_Slack.json'
 
 permissions:
@@ -18,48 +19,34 @@ permissions:
 jobs:
   capture-evidence:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      N8N_BASE_URL: https://n8n-validation-production.up.railway.app
-      N8N_EMAIL: ${{ secrets.N8N_EMAIL }}
-      N8N_PASSWORD: ${{ secrets.N8N_PASSWORD }}
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Check required secrets
-        id: secrets
-        shell: bash
-        run: |
-          if [[ -z "$N8N_EMAIL" || -z "$N8N_PASSWORD" ]]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Add repository secrets N8N_EMAIL and N8N_PASSWORD, then run this workflow again."
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Set up Node.js
-        if: steps.secrets.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
+      - name: Install system dependency for bcrypt hashing
+        run: sudo apt-get update && sudo apt-get install -y apache2-utils
+
       - name: Install dependencies
-        if: steps.secrets.outputs.ready == 'true'
         run: npm install
 
       - name: Install Chromium
-        if: steps.secrets.outputs.ready == 'true'
         run: npx playwright install --with-deps chromium
 
-      - name: Capture n8n evidence
-        if: steps.secrets.outputs.ready == 'true'
-        run: npm run evidence
+      - name: Start disposable n8n and capture T1 evidence
+        env:
+          CI_MODE: '1'
+        run: npm start
 
       - name: Upload screenshots, trace, report and video
-        if: always() && steps.secrets.outputs.ready == 'true'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: t1-n8n-evidence-${{ github.run_number }}
