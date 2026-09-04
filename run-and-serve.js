@@ -9,6 +9,7 @@ const port = Number(process.env.PORT || 8080);
 const n8nPort = 5678;
 const n8nBaseUrl = `http://127.0.0.1:${n8nPort}`;
 const ownerEmail = 'validation-owner@example.com';
+const ciMode = process.env.CI_MODE === '1';
 
 function contentType(file) {
   if (file.endsWith('.png')) return 'image/png';
@@ -32,37 +33,33 @@ function walk(dir, base = dir) {
   return out.sort();
 }
 
-function startServer(exitCode) {
+function finish(exitCode) {
+  console.log(`[EVIDENCE_RESULT] playwright_exit_code=${exitCode}`);
+  for (const f of walk(evidenceDir)) console.log(`[EVIDENCE_FILE] ${f}`);
+  if (ciMode) {
+    process.exitCode = exitCode;
+    return;
+  }
   const server = http.createServer((req, res) => {
     const raw = decodeURIComponent((req.url || '/').split('?')[0]);
     if (raw === '/' || raw === '/index.html') {
-      const files = walk(evidenceDir);
-      const items = files.map((f) => `<li><a href="/evidence/${encodeURI(f)}">${f}</a></li>`).join('');
+      const items = walk(evidenceDir).map((f) => `<li><a href="/evidence/${encodeURI(f)}">${f}</a></li>`).join('');
       const html = `<!doctype html><html><head><meta charset="utf-8"><title>n8n Playwright Evidence</title></head><body><h1>n8n Playwright Evidence</h1><p>Playwright exit code: ${exitCode}</p><ul>${items}</ul></body></html>`;
       res.writeHead(exitCode === 0 ? 200 : 500, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(html);
     }
-
     if (raw.startsWith('/evidence/')) {
       const rel = raw.slice('/evidence/'.length);
       const full = path.resolve(evidenceDir, rel);
       if (!full.startsWith(evidenceDir + path.sep) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
-        res.writeHead(404);
-        return res.end('Not found');
+        res.writeHead(404); return res.end('Not found');
       }
       res.writeHead(200, { 'content-type': contentType(full) });
       return fs.createReadStream(full).pipe(res);
     }
-
-    res.writeHead(404);
-    res.end('Not found');
+    res.writeHead(404); res.end('Not found');
   });
-
-  server.listen(port, '0.0.0.0', () => {
-    console.log(`[EVIDENCE_SERVER] listening on ${port}`);
-    console.log(`[EVIDENCE_RESULT] playwright_exit_code=${exitCode}`);
-    for (const f of walk(evidenceDir)) console.log(`[EVIDENCE_FILE] ${f}`);
-  });
+  server.listen(port, '0.0.0.0', () => console.log(`[EVIDENCE_SERVER] listening on ${port}`));
 }
 
 function makePassword() {
@@ -133,24 +130,13 @@ async function main() {
   try {
     await waitForN8n();
     console.log('[VALIDATION] n8n is ready; starting Playwright');
-
-    const testEnv = {
-      ...process.env,
-      N8N_BASE_URL: n8nBaseUrl,
-      N8N_EMAIL: ownerEmail,
-      N8N_PASSWORD: password,
-    };
-
+    const testEnv = { ...process.env, N8N_BASE_URL: n8nBaseUrl, N8N_EMAIL: ownerEmail, N8N_PASSWORD: password };
     const pwLog = fs.createWriteStream(path.join(evidenceDir, 'playwright.log'), { flags: 'a' });
-    const child = spawn('npx', ['playwright', 'test', 'e2e/n8n-evidence.spec.js', '--project=chromium'], {
-      env: testEnv,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawn('npx', ['playwright', 'test', 'e2e/n8n-evidence.spec.js', '--project=chromium'], { env: testEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     child.stdout.pipe(pwLog);
     child.stderr.pipe(pwLog);
     child.stdout.on('data', (chunk) => process.stdout.write(`[playwright] ${chunk}`));
     child.stderr.on('data', (chunk) => process.stderr.write(`[playwright] ${chunk}`));
-
     playwrightExit = await new Promise((resolve) => {
       child.on('exit', (code) => resolve(code ?? 1));
       child.on('error', () => resolve(1));
@@ -166,7 +152,7 @@ async function main() {
       workflow: 'T1_WhatsApp_Lead_AI_Scoring_Slack',
       mode: 'disposable-local-n8n-plus-playwright',
     }, null, 2));
-    startServer(playwrightExit);
+    finish(playwrightExit);
   }
 }
 
@@ -174,5 +160,5 @@ main().catch((error) => {
   fs.mkdirSync(evidenceDir, { recursive: true });
   fs.writeFileSync(path.join(evidenceDir, 'fatal-error.txt'), `${error.stack || error}\n`);
   console.error('[FATAL]', error);
-  startServer(1);
+  finish(1);
 });
