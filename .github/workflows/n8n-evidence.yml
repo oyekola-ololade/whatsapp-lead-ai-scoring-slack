@@ -29,25 +29,18 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install lightweight validation dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y apache2-utils
-          npm install
+      - name: Install Playwright test library
+        run: npm install
 
       - name: Verify preinstalled Chrome
         run: google-chrome --version
 
-      - name: Start disposable n8n 2.37.9
+      - name: Start and bootstrap disposable n8n 2.37.9
         shell: bash
         run: |
           PASSWORD="$(openssl rand -hex 16)Aa1!"
-          HASH="$(htpasswd -bnBC 12 '' "$PASSWORD" | cut -d: -f2)"
           ENCRYPTION_KEY="$(openssl rand -hex 32)"
           echo "::add-mask::$PASSWORD"
-          echo "N8N_BASE_URL=http://127.0.0.1:5678" >> "$GITHUB_ENV"
-          echo "N8N_EMAIL=validation-owner@example.com" >> "$GITHUB_ENV"
-          echo "N8N_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
 
           docker run -d --name n8n-t1-validation \
             -p 127.0.0.1:5678:5678 \
@@ -62,23 +55,22 @@ jobs:
             -e N8N_PERSONALIZATION_ENABLED=false \
             -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
             -e N8N_ENCRYPTION_KEY="$ENCRYPTION_KEY" \
-            -e N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true \
-            -e N8N_INSTANCE_OWNER_EMAIL=validation-owner@example.com \
-            -e N8N_INSTANCE_OWNER_FIRST_NAME=Validation \
-            -e N8N_INSTANCE_OWNER_LAST_NAME=Owner \
-            -e N8N_INSTANCE_OWNER_PASSWORD_HASH="$HASH" \
             n8nio/n8n:2.37.9
 
           for i in {1..60}; do
             if curl -fsS http://127.0.0.1:5678/healthz >/dev/null; then
-              echo "n8n is ready"
-              exit 0
+              break
             fi
             sleep 2
           done
 
-          docker logs n8n-t1-validation
-          exit 1
+          curl -fsS -X POST http://127.0.0.1:5678/rest/owner/setup \
+            -H 'content-type: application/json' \
+            --data "{\"email\":\"validation-owner@example.com\",\"firstName\":\"Validation\",\"lastName\":\"Owner\",\"password\":\"$PASSWORD\"}"
+
+          echo "N8N_BASE_URL=http://127.0.0.1:5678" >> "$GITHUB_ENV"
+          echo "N8N_EMAIL=validation-owner@example.com" >> "$GITHUB_ENV"
+          echo "N8N_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
 
       - name: Import T1 and capture evidence
         run: npm run evidence
