@@ -18,7 +18,7 @@ permissions:
 jobs:
   capture-evidence:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Check out repository
@@ -29,12 +29,14 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install validation dependencies
+      - name: Install lightweight validation dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y apache2-utils
           npm install
-          npx playwright install --with-deps chromium
+
+      - name: Verify preinstalled Chrome
+        run: google-chrome --version
 
       - name: Start disposable n8n 2.37.9
         shell: bash
@@ -48,7 +50,7 @@ jobs:
           echo "N8N_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
 
           docker run -d --name n8n-t1-validation \
-            -p 5678:5678 \
+            -p 127.0.0.1:5678:5678 \
             -e N8N_PORT=5678 \
             -e N8N_PROTOCOL=http \
             -e N8N_HOST=127.0.0.1 \
