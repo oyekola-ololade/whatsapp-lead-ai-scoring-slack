@@ -1,0 +1,5 @@
+FROM node:24-bookworm-slim
+WORKDIR /app
+COPY selenium-controller.js ./selenium-controller.js
+ENV PORT=8080
+CMD ["node","selenium-controller.js"]
