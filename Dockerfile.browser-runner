@@ -1,0 +1,5 @@
+FROM node:24-bookworm-slim
+WORKDIR /app
+COPY discourse-poster.js ./discourse-poster.js
+ENV PORT=8080
+CMD ["node","discourse-poster.js"]
