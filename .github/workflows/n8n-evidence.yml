@@ -32,6 +32,9 @@ jobs:
       - name: Install Playwright test library
         run: npm install
 
+      - name: Install Playwright FFmpeg
+        run: npx playwright install ffmpeg
+
       - name: Verify preinstalled Chrome
         run: google-chrome --version
 
