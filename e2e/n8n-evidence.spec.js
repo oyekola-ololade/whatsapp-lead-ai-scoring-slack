@@ -17,31 +17,29 @@ async function capture(page, name) {
   await page.screenshot({ path: path.join(evidenceDir, name), fullPage: true });
 }
 
-async function loginIfNeeded(page) {
-  await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForTimeout(1500);
+async function login(page) {
+  // n8n's /healthz becomes responsive before database migrations and owner bootstrap
+  // are fully complete. Go straight to the sign-in route and wait for the real UI.
+  await page.goto(`${baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
   const emailInput = page.locator('input[type="email"], input[name="email"]').first();
   const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
+  await expect(emailInput).toBeVisible({ timeout: 45000 });
+  await expect(passwordInput).toBeVisible({ timeout: 45000 });
 
-  if (await emailInput.isVisible().catch(() => false)) {
-    await capture(page, '00-login-page.png');
-    await emailInput.fill(email);
-    await passwordInput.fill(password);
+  await capture(page, '00-login-page.png');
+  await emailInput.fill(email);
+  await passwordInput.fill(password);
 
-    const loginButton = page.getByRole('button', { name: /sign in|log in|login/i }).first();
-    if (await loginButton.isVisible().catch(() => false)) {
-      await loginButton.click();
-    } else {
-      await passwordInput.press('Enter');
-    }
-
-    await page.waitForTimeout(2500);
+  const loginButton = page.getByRole('button', { name: /sign in|log in|login/i }).first();
+  if (await loginButton.isVisible().catch(() => false)) {
+    await loginButton.click();
+  } else {
+    await passwordInput.press('Enter');
   }
 
-  if (/signin|login/i.test(new URL(page.url()).pathname)) {
-    throw new Error(`Login did not complete. Current URL: ${page.url()}`);
-  }
+  await page.waitForFunction(() => !/\/signin|\/login/i.test(window.location.pathname), null, { timeout: 45000 });
+  await page.waitForTimeout(1500);
 }
 
 test('T1 imports into n8n and renders its workflow canvas', async ({ page }) => {
@@ -54,11 +52,16 @@ test('T1 imports into n8n and renders its workflow canvas', async ({ page }) => 
   }
 
   try {
-    await loginIfNeeded(page);
+    await login(page);
     await capture(page, '01-after-login.png');
 
     await page.goto(`${baseUrl}/workflow/new`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(2500);
+
+    const urlBeforeImport = page.url();
+    const bodyBeforeImport = await page.locator('body').innerText().catch(() => 'Unable to read body');
+    console.log(`[DIAGNOSTIC] workflow-new-url=${urlBeforeImport}`);
+    console.log(`[DIAGNOSTIC] workflow-new-body=${bodyBeforeImport.slice(0, 3000).replace(/\n/g, ' | ')}`);
 
     const importInput = page.locator('[data-test-id="workflow-import-input"]');
     await expect(importInput).toBeAttached({ timeout: 30000 });
@@ -71,21 +74,20 @@ test('T1 imports into n8n and renders its workflow canvas', async ({ page }) => 
     fs.writeFileSync(path.join(evidenceDir, '02-page-text.txt'), bodyText);
     fs.writeFileSync(path.join(evidenceDir, '02-current-url.txt'), page.url());
 
-    // These names come directly from the checked-in workflow JSON and prove the canvas rendered it.
     expect(bodyText).toContain('WhatsApp Lead Webhook');
     expect(bodyText).toContain('Claude AI Scoring');
     expect(bodyText).toContain('Send to Slack');
 
-    // Capture a second frame after a small pause so the video clearly shows a stable imported canvas.
     await page.waitForTimeout(2500);
     await capture(page, '03-t1-stable-canvas.png');
   } catch (error) {
     await capture(page, '99-diagnostic-failure.png').catch(() => {});
     const text = await page.locator('body').innerText().catch(() => 'Unable to read page body');
+    const url = page.url();
+    console.log(`[DIAGNOSTIC_FAILURE_URL] ${url}`);
+    console.log(`[DIAGNOSTIC_FAILURE_BODY] ${text.slice(0, 5000).replace(/\n/g, ' | ')}`);
     fs.writeFileSync(path.join(evidenceDir, '99-diagnostic-page-text.txt'), text);
-    fs.writeFileSync(path.join(evidenceDir, '99-diagnostic-url.txt'), page.url());
+    fs.writeFileSync(path.join(evidenceDir, '99-diagnostic-url.txt'), url);
     throw error;
   }
 });
-
-// Evidence runner trigger: 2026-09-04
